@@ -1,0 +1,43 @@
+services:
+  traefik:
+    image: traefik:3.6.13
+    ports:
+      # Exposes port 80 for incomming web requests
+      - 80:80
+      # The Web UI port http://0.0.0.0:8080 (enabled by --api.insecure=true)
+      - 8080:8080
+      - 3306:3306
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./app/traefik/conf/traefik.yml:/etc/traefik/traefik.yml
+
+  mysql:
+    image: mysql:8.4.8
+    environment:
+      - MYSQL_ROOT_PASSWORD
+      - MYSQL_USER
+      - MYSQL_PASSWORD
+      - MYSQL_DATABASE
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.services.mysql.loadbalancer.server.port=3306"
+      - "traefik.tcp.routers.mysql.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.mysql.entrypoints=mysql"
+    volumes:
+      - ./app/mysql/conf:/etc/mysql/conf.d
+      - ./app/mysql/dump:/docker-entrypoint-initdb.d
+      - mysql-data:/var/lib/mysql
+
+  adminer:
+    image: adminer
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adminer.rule=Host(`$ADMINER_UI_DNS`)"
+      - "traefik.http.routers.adminer.entrypoints=web"
+      - "traefik.http.routers.adminer.service=adminer"
+      - "traefik.http.services.adminer.loadbalancer.server.port=8080"
+
+volumes:
+  mysql-data:
